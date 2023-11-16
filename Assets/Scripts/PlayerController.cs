@@ -1,0 +1,147 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UIElements;
+
+public class PlayerController : MonoBehaviour
+{
+    // Variables públicas para ajustar parámetros
+    public float horizontalMove;
+    public float verticalMove;
+    private Vector3 playerInput;
+    public float gravity = 22f;        // Gravedad aplicada al personaje
+    public float fallVelocity;         // Velocidad de caída
+    public float jumpForce = 8;        // Fuerza de salto
+
+    public CharacterController player; // Componente CharacterController que controla al personaje
+
+    public float playerSpeed;          // Velocidad de movimiento del jugador
+    private Vector3 movePlayer;       // Vector de movimiento
+
+    public Camera mainCamera;          // Cámara principal
+    private Vector3 camForward;       // Dirección hacia adelante de la cámara
+    private Vector3 camRight;         // Dirección hacia la derecha de la cámara
+
+    public bool isOnSlope = false;    // Indica si el jugador está en una pendiente
+    private Vector3 hitNormal;        // Normal de la superficie golpeada
+    public float slideVelocity;       // Velocidad de deslizamiento en pendientes
+    public float slopForceDown;       // Fuerza hacia abajo al deslizar en pendientes
+
+    //Variables de animacion
+    public Animator playerAnimatorcontroller;
+
+    // Método llamado al inicio del juego
+    void Start()
+    {
+        // Inicializa el componente CharacterController
+        player = GetComponent<CharacterController>();
+        playerAnimatorcontroller = GetComponent<Animator>();
+    }
+
+    // Método llamado en cada fotograma del juego
+    void Update()
+    {
+        // Obtener las entradas del jugador para el movimiento
+        horizontalMove = Input.GetAxis("Horizontal");
+        verticalMove = Input.GetAxis("Vertical");
+
+        // Crear un vector de entrada del jugador y limitar su magnitud a 1
+        playerInput = new Vector3(horizontalMove, 0, verticalMove);
+        playerInput = Vector3.ClampMagnitude(playerInput, 1);
+
+        playerAnimatorcontroller.SetFloat("PlayerWalkVelocity", playerInput.magnitude * playerSpeed);
+
+        // Calcular la dirección de la cámara en relación al personaje
+        camDirection();
+
+        // Calcular el vector de movimiento del jugador
+        movePlayer = playerInput.x * camRight + playerInput.z * camForward;
+        movePlayer = movePlayer * playerSpeed;
+
+        // Hacer que el personaje mire en la dirección del movimiento
+        player.transform.LookAt(player.transform.position + movePlayer);
+
+        // Aplicar la gravedad
+        SetGravity();
+
+        // Gestionar las habilidades del jugador, como el salto
+        PlayerSkills();
+
+        // Mover al jugador en base al vector de movimiento
+        player.Move(movePlayer * Time.deltaTime);
+
+        // Imprimir la magnitud de la velocidad del jugador en la consola
+        Debug.Log(player.velocity.magnitude);
+    }
+
+    // Calcular la dirección de la cámara
+    void camDirection()
+    {
+        camForward = mainCamera.transform.forward;
+        camRight = mainCamera.transform.right;
+
+        // Anular los componentes de altura (y) y normalizar los vectores
+        camForward.y = 0;
+        camRight.y = 0;
+        camForward = camForward.normalized;
+        camRight = camRight.normalized;
+    }
+
+    // Función para las habilidades del jugador
+    public void PlayerSkills()
+    {
+        // Verificar si el jugador está en el suelo y presiona el botón de salto
+        if (player.isGrounded && Input.GetButtonDown("Jump"))
+        {
+            fallVelocity = jumpForce;
+            movePlayer.y = fallVelocity;
+            playerAnimatorcontroller.SetTrigger("PlayerJump");
+        }
+    }
+
+    // Función para gestionar la gravedad
+    void SetGravity()
+    {
+        if (player.isGrounded)
+        {
+            // El jugador está en el suelo, restablecer la velocidad de caída
+            fallVelocity = -gravity * Time.deltaTime;
+            movePlayer.y = fallVelocity;
+            playerAnimatorcontroller.SetFloat("PlayerVerticalVelocity", player.velocity.y);
+        }
+        else
+        {
+            // El jugador no está en el suelo, aplicar la gravedad
+            fallVelocity -= gravity * Time.deltaTime;
+            movePlayer.y = fallVelocity;
+        }
+        playerAnimatorcontroller.SetBool("IsGrounded", player.isGrounded);
+        SlideDown();
+    }
+
+
+    // Función para deslizarse en pendientes
+    public void SlideDown()
+    {
+        isOnSlope = Vector3.Angle(Vector3.up, hitNormal) >= player.slopeLimit;
+        if (isOnSlope)
+        {
+            movePlayer.x += ((1f - hitNormal.y) * hitNormal.x) * slideVelocity;
+            movePlayer.z += ((1f - hitNormal.y) * hitNormal.z) * slideVelocity;
+
+            movePlayer.y += slopForceDown;
+        }
+    }
+
+
+    // Método llamado cuando el CharacterController choca con un collider
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        hitNormal = hit.normal;
+    }
+
+    private void OnAnimatorMove()
+    {
+        
+    }
+}
